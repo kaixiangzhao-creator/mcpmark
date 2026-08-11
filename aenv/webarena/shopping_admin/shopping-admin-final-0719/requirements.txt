@@ -1,0 +1,3 @@
+--extra-index-url https://pypi.shopee.io/simple/
+shopee-aenvironment
+

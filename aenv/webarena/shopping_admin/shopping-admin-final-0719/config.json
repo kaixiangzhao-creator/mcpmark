@@ -1,0 +1,41 @@
+{
+  "name": "shopping-admin-final-0719",
+  "description": "AEnv sandbox wrapper for a SWE-bench sweb.eval image",
+  "version": "2.0.0",
+  "tags": [
+    "swebench",
+    "sweb"
+  ],
+  "status": "Ready",
+  "owner": "LLM Team",
+  "codeUrl": "",
+  "artifacts": [],
+  "buildConfig": {
+    "dockerfile": "./Dockerfile",
+    "type": "remote"
+  },
+  "testConfig": {
+    "script": ""
+  },
+  "deployConfig": {
+    "backend": "sandbox",
+    "cpu": "2",
+    "memory": "4Gi",
+    "warm_size": 1,
+    "os": "linux",
+    "ephemeralStorage": "10Gi",
+    "environmentVariables": {
+      "SWEB_HOME": "/home/user/sweb",
+      "TESTBED_PATH": "/home/user/sweb/testbed",
+      "CONDA_DIR": "/opt/miniconda3"
+    },
+    "service": {
+      "replicas": 1,
+      "port": 8081,
+      "enableStorage": false,
+      "storageName": "aenv",
+      "storageSize": "10Gi",
+      "mountPath": "/home/admin/data"
+    }
+  }
+}
