@@ -48,3 +48,17 @@ Notion 同步页面：<https://app.notion.com/p/3b9af8dad1e481a7a609d710894eb967
 2. 安装/核对 `shopee-aenvironment==0.1.96`。
 3. 对三镜像进行只读取证并形成 M2 报告。
 4. 根据 AEnv 官方存储能力确定 baseline 的最终承载位置。
+
+### M1 完成
+
+- Git commit：`8af11d7 docs(aenv): add external-state and official AEnv baseline`。
+- 已推送到个人 fork 工作分支。
+- 已安装并核对 `shopee-aenvironment==0.1.96`，Build Commit 为 `f417ac9`。
+- 官方 SDK 确认支持 Environment service、`service_url` 和可选 PVC；baseline 导入和快照仍待实测。
+
+### M2 初步结论
+
+- `docker image inspect .Size` 与 `docker system df -v` 的本地解包累计 layer 大小口径不同。
+- 已有 Shopping Admin AEnv 1.0.1 的 inspect size 约 2.74GB，但本地 layer size 约 13GB。
+- 约 3.89GB layer 来自构建中的递归 `chown`，需要以 `COPY --chown` 和预先裁剪替代。
+- 为满足“不拉起 10GB 以上 Docker”，验收标准升级为 registry/inspect 和本地解包 layer 双门禁。

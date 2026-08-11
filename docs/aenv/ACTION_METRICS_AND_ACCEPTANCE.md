@@ -31,9 +31,12 @@
 
 | 指标 | 硬门禁 | 目标值 |
 | --- | ---: | ---: |
-| Shopping runtime Docker image size | `< 10,000,000,000 bytes` | `<= 7GB` |
-| Shopping Admin runtime Docker image size | `< 10,000,000,000 bytes` | `<= 2.5GB` |
-| Postmill runtime Docker image size | `< 10,000,000,000 bytes` | `<= 4GB` |
+| Shopping registry/inspect size | `< 10,000,000,000 bytes` | `<= 7GB` |
+| Shopping 本地解包累计 layer size | `< 10GB` | `<= 9GB` |
+| Shopping Admin registry/inspect size | `< 10,000,000,000 bytes` | `<= 2.5GB` |
+| Shopping Admin 本地解包累计 layer size | `< 10GB` | `<= 8GB` |
+| Postmill registry/inspect size | `< 10,000,000,000 bytes` | `<= 4GB` |
+| Postmill 本地解包累计 layer size | `< 10GB` | `<= 8GB` |
 | 单题重复执行时重新下载完整媒体 | `0` | `0` |
 | 同一节点镜像重复 pull/load | 非版本变化时 `0` | `0` |
 | 健康检查 | 在官方 AEnv 超时内成功 | 记录 P50/P95 |
@@ -117,7 +120,7 @@
 
 以下条件必须同时满足：
 
-- 三个最终 runtime 镜像分别通过 `<10GB` 硬门禁；
+- 三个最终 runtime 镜像的 registry/inspect 大小和本地解包累计 layer 大小均通过 `<10GB` 硬门禁；
 - 三个环境均按官方流程上传为 AEnv；
 - 三个 AEnv 均通过远程实例创建、启动、健康检查和代表性页面检查；
 - 外置图片和数据库继续完整支撑评测，逐题状态隔离测试通过；
