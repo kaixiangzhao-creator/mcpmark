@@ -67,12 +67,14 @@ MariaDB crash recovery 会修改它；该结果被废弃。正式 smoke 从重�
 的 302 变为 404；最终版只清空 log/cache/session/page_cache，保留不足 100MB 的必要 runtime
 元数据，恢复到与原镜像一致的 302。
 
-## 尚未通过的门禁
+## 远程状态与尚未通过的门禁
 
-- 本版本尚未推送 Harbor/AEnv Hub；
+- 本版本已推送 Harbor，并通过官方 CLI 上传 AEnv Hub；`aenv get` 可返回
+  `shopping-admin-final-0719@2.0.0` 及正确 artifact；
 - 远程 PVC 尚未导入 baseline；
-- 尚未创建并验证 2.0.0 的真实远程 service；
-- Shopping 和 Postmill runtime 尚未完成；
-- MCPMark provider 尚未接入。
+- `/env-service` 诊断返回 HTTP 404 和 JSON `null`，未创建远程 service；
+- `aenv instance create` 超时，完整实例列表中没有该环境；
+- MCPMark `external-state` 已接入并用本镜像完成真实本地 setup/cleanup，AEnv
+  远程 provider 仍受控制面和 baseline/PVC 导入机制阻塞。
 
 因此本报告只证明 Shopping Admin 的本地小型 runtime 和外置数据组合通过，不代表整个任务完成。

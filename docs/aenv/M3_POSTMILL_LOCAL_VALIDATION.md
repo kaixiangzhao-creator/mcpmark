@@ -35,8 +35,9 @@ runtime 使用 `shopee-aenvironment==0.1.96` 官方 CLI 的
 56ad00ecbb7504ac3c0b7161bef1aa798e91e449e9771689f4981a9cd154202b
 ```
 
-manifest 与数据位于仓库外的 `mcpmark-data`，不进入 Git。每个任务通过 reflink（文件系统
-不支持时退化为普通复制）从 pristine baseline 创建新的 writable slot。实测依次创建并启动
+manifest 与数据位于仓库外的 `mcpmark-data`，不进入 Git。验收脚本使用 reflink（文件系统
+不支持时退化为普通复制）从 pristine baseline 创建新的 writable slot；MCPMark 正式
+`external-state` backend 则使用 `--reflink=always`，不允许静默退化为 44GB 全量复制。实测依次创建并启动
 `postmill-smoke-1`、`postmill-smoke-2`；第二个 slot 的 Web 和 health 均成功，证明不需要重新拉取
 runtime 镜像即可重置有状态数据。
 
@@ -67,12 +68,12 @@ runtime 镜像即可重置有状态数据。
 | AEnv reward | `/task/reward` 真实调用 HTTP 200、score 1.0 |
 | 状态重置 | 从 pristine 创建第二个 slot 后 health/Web 再次通过 |
 
-## 尚未通过的门禁
+## 远程状态与尚未通过的门禁
 
-- 本版本尚未推送 Harbor/AEnv Hub；
+- 本版本已推送 Harbor，并通过官方 CLI 上传 AEnv Hub；`aenv get` 可返回
+  `postmill-populated-exposed-withimg@2.0.0` 及正确 artifact；
 - 远程 PVC 尚未导入 baseline；
-- 尚未创建并验证 2.0.0 的真实远程 service；
-- Shopping runtime 尚未完成；
-- MCPMark provider 尚未接入。
+- 当前控制面的 `/env-service` endpoint 返回 HTTP 404/JSON `null`，因此尚未创建并验证真实远程 service；
+- MCPMark `external-state` provider 已完成第一阶段接入，AEnv 远程 provider 仍受 PVC baseline 导入/快照机制阻塞。
 
 因此本报告只证明 Postmill 的本地小型 runtime 与外置 baseline 组合通过，不代表整个任务完成。
