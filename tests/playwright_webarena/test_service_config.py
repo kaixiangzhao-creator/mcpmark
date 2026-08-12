@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from src.mcp_services.playwright_webarena.playwright_state_manager import (
     PlaywrightStateManager,
 )
-from src.mcp_services.playwright_webarena.state.aenv_backend import AEnvServiceBackend
+from src.mcp_services.playwright_webarena.state.aenv_backend import (
+    AEnvServiceBackend,
+    PreparedAEnvService,
+)
 from src.services import SERVICES
 
 
@@ -46,6 +50,35 @@ class WebArenaServiceConfigTest(unittest.TestCase):
             AEnvServiceBackend("shared-baseline-pvc")
         backend = AEnvServiceBackend("mcpmark-{category}-{run_id}")
         self.assertIn("{run_id}", backend.pvc_name_template)
+
+    def test_aenv_provider_injects_url_and_releases_service(self) -> None:
+        manager = PlaywrightStateManager(
+            state_backend="aenv",
+            aenv_pvc_name_template="mcpmark-{category}-{run_id}",
+        )
+        backend = Mock()
+        backend.prepare.return_value = PreparedAEnvService(
+            run_id="run-1",
+            category="shopping_admin",
+            service_id="svc-1",
+            service_url="https://runtime.example",
+            pvc_name="mcpmark-shopping-admin-run-1",
+            metadata={"aenv_name": "shopping-admin-final-0719@2.0.0"},
+        )
+        manager.aenv_backend = backend
+        task = SimpleNamespace(name="aenv-test", category_id="shopping_admin")
+
+        state = manager._create_aenv_initial_state(task)
+        self.assertEqual(state.state_url, "https://runtime.example/admin")
+        manager._store_initial_state_info(task, state)
+        self.assertEqual(
+            manager.get_service_config_for_agent()["base_url"],
+            "https://runtime.example/admin",
+        )
+        resource = manager.tracked_resources[0]
+        self.assertTrue(manager._cleanup_single_resource(resource))
+        backend.cleanup.assert_called_once_with("svc-1")
+        manager.skip_cleanup = True
 
 
 if __name__ == "__main__":
