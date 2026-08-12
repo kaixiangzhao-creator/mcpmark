@@ -1,0 +1,16 @@
+FROM shopping_final_0712:latest
+
+RUN mkdir -p /aenv-copy/www /aenv-copy/elasticsearch && \
+    tar -C /var/www \
+      --exclude='./magento2/pub/media' \
+      --exclude='./magento2/var/log' \
+      --exclude='./magento2/var/page_cache' \
+      --exclude='./magento2/var/session' \
+      --exclude='./magento2/var/cache' \
+      -cf - . | tar -C /aenv-copy/www -xf - && \
+    tar -C /usr/share/java/elasticsearch \
+      --exclude='./data' \
+      --exclude='./logs' \
+      -cf - . | tar -C /aenv-copy/elasticsearch -xf - && \
+    rm -rf /usr/share/java/elasticsearch/data \
+      /usr/share/java/elasticsearch/logs

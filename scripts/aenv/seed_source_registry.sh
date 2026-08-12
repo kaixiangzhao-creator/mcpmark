@@ -8,7 +8,7 @@ fi
 
 source_image=$1
 target_ref=$2
-registry_container=mcpmark-aenv-source-registry
+repository_root=$(git rev-parse --show-toplevel)
 
 case "$target_ref" in
   localhost:5000/*) ;;
@@ -16,14 +16,7 @@ case "$target_ref" in
 esac
 
 docker image inspect "$source_image" >/dev/null
-if docker container inspect "$registry_container" >/dev/null 2>&1; then
-  if [ "$(docker inspect -f '{{.State.Running}}' "$registry_container")" != true ]; then
-    docker start "$registry_container" >/dev/null
-  fi
-else
-  docker run -d --restart unless-stopped --name "$registry_container" \
-    -p 127.0.0.1:5000:5000 registry:2 >/dev/null
-fi
+"${repository_root}/scripts/aenv/ensure_source_registry.sh" >/dev/null
 
 docker tag "$source_image" "$target_ref"
 docker push "$target_ref"

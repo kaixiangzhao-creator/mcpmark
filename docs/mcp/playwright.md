@@ -88,7 +88,7 @@ WEBARENA_STATE_BACKEND=aenv
 WEBARENA_AENV_PVC_NAME_TEMPLATE=mcpmark-{category}-{run_id}
 # Optional; otherwise the official CLI configuration resolves the URL:
 WEBARENA_AENV_SYSTEM_URL=
-COMPASS_ADMIN_API_KEY=***
+COMPASS_ADMIN_API_KEY=<your-api-key>
 ```
 
 The provider uses the official `AEnvSchedulerClient` to mount the existing PVC

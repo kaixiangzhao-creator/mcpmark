@@ -1,3 +1,2 @@
---extra-index-url https://pypi.shopee.io/simple/
-shopee-aenvironment
-
+--index-url https://pypi.shopee.io
+shopee-aenvironment==0.1.96

@@ -1,4 +1,5 @@
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -9,11 +10,18 @@ from aenv import register_health, register_reward, register_tool
 
 
 def _web_status() -> Dict[str, Any]:
-    try:
-        with urllib.request.urlopen("http://127.0.0.1:8080/", timeout=3) as response:
-            return {"reachable": True, "status_code": response.status}
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        return {"reachable": False, "error": str(exc)}
+    last_error = ""
+    for attempt in range(5):
+        try:
+            with urllib.request.urlopen(
+                "http://127.0.0.1:8080/", timeout=3
+            ) as response:
+                return {"reachable": True, "status_code": response.status}
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = str(exc)
+            if attempt < 4:
+                time.sleep(1)
+    return {"reachable": False, "error": last_error}
 
 
 @register_health
@@ -26,11 +34,32 @@ def check_health() -> Dict[str, Any]:
     data_ready = all(
         (data_root / name).is_dir() for name in ("mysql", "media", "elasticsearch")
     )
-    healthy = services.returncode == 0 and bool(web.get("reachable")) and data_ready
+    required_services = (
+        "aenv",
+        "elasticsearch",
+        "mailcatcher",
+        "mysqld",
+        "nginx",
+        "php-fpm",
+        "redis-server",
+    )
+    service_states = {
+        line.split()[0]: line.split()[1]
+        for line in services.stdout.splitlines()
+        if len(line.split()) >= 2
+    }
+    services_ready = all(
+        service_states.get(name) == "RUNNING" for name in required_services
+    )
+    # Registered functions may run in an isolated network context where the
+    # Web process' container loopback is intentionally unreachable. Web
+    # readiness is checked independently through the published port.
+    healthy = services_ready and data_ready
     return {
         "status": "healthy" if healthy else "degraded",
         "web": web,
         "external_data_ready": data_ready,
+        "required_services_ready": services_ready,
         "services": services.stdout,
         "service_error": services.stderr,
     }
