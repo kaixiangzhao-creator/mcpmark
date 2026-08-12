@@ -124,6 +124,7 @@ class PlaywrightStateManager(BaseStateManager):
         self.skip_cleanup = skip_cleanup
         self.active_entry_url = None
         self.active_metadata = {}
+        self.last_error = None
         self.state_backend_name = state_backend
         self.reset_timeout = reset_timeout
         self.keep_failed_state = keep_failed_state
@@ -453,6 +454,7 @@ class PlaywrightStateManager(BaseStateManager):
     # ---- BaseStateManager hooks -----------------------------------------
 
     def _create_initial_state(self, task: BaseTask) -> Optional[InitialStateInfo]:
+        self.last_error = None
         if self.aenv_backend is not None:
             return self._create_aenv_initial_state(task)
         if self.external_backend is not None:
@@ -489,6 +491,7 @@ class PlaywrightStateManager(BaseStateManager):
             print("| Docker run command: ", run_cmd)
             result = self._run_cmd(run_cmd)
             if result.returncode != 0:
+                self.last_error = f"docker run failed: {result.stderr.strip()}"
                 logger.error("| Failed to start container: %s", result.stderr.strip())
                 return None
             container_id = result.stdout.strip()
@@ -505,6 +508,7 @@ class PlaywrightStateManager(BaseStateManager):
             # Wait for readiness
             if not self._wait_until_ready():
                 # Cleanup on failure
+                self.last_error = f"runtime readiness timed out: {self._get_entry_url()}"
                 self._stop_and_remove_container(self.config.container_name)
                 return None
 
@@ -536,12 +540,14 @@ class PlaywrightStateManager(BaseStateManager):
                 },
             )
         except Exception as exc:
+            self.last_error = str(exc)
             logger.error("| Failed to create WebArena initial state: %s", exc)
             return None
 
     def _create_aenv_initial_state(self, task: BaseTask) -> Optional[InitialStateInfo]:
         category = getattr(task, "category_id", "")
         if category not in self.CATEGORY_CONFIGS:
+            self.last_error = f"unsupported WebArena category: {category}"
             logger.error("| Unsupported WebArena category: %s", category)
             return None
         try:
@@ -566,6 +572,7 @@ class PlaywrightStateManager(BaseStateManager):
                 metadata=metadata,
             )
         except Exception as exc:
+            self.last_error = str(exc)
             logger.error("| Failed to create AEnv WebArena service: %s", exc)
             return None
 
@@ -574,6 +581,7 @@ class PlaywrightStateManager(BaseStateManager):
     ) -> Optional[InitialStateInfo]:
         category = getattr(task, "category_id", "")
         if category not in self.CATEGORY_CONFIGS:
+            self.last_error = f"unsupported WebArena category: {category}"
             logger.error("| Unsupported WebArena category: %s", category)
             return None
 
@@ -653,6 +661,7 @@ class PlaywrightStateManager(BaseStateManager):
                 metadata=common_metadata,
             )
         except Exception as exc:
+            self.last_error = str(exc)
             logger.error("| Failed to create external WebArena state: %s", exc)
             if container_name:
                 self._stop_and_remove_container(container_name)

@@ -198,10 +198,15 @@ class MCPEvaluator:
         if not setup_success:
             logger.error(f"| State setup failed for task: {task.name}")
             task_total_time = time.time() - task_start_time
+            setup_error = getattr(self.state_manager, "last_error", None)
             return TaskResult(
                 task_name=task.name,
                 success=False,
-                error_message="State Duplication Error",
+                error_message=(
+                    f"State setup failed: {setup_error}"
+                    if setup_error
+                    else "State Duplication Error"
+                ),
                 verification_error=None,
                 verification_output=None,
                 category_id=task.category_id,
