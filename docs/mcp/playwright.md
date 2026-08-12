@@ -4,6 +4,71 @@ This guide walks you through setting up WebArena environments for Playwright MCP
 
 Section 1 is designed mainly for completing the Playwright-WebArena tasks.
 
+## Recommended: slim runtime plus external state
+
+The tar-based instructions below are the legacy compatibility path. Those
+images embed tens of gigabytes of database and media state. MCPMark also
+supports slim runtime images with a versioned pristine baseline stored once on
+the worker.
+
+Expected state root layout:
+
+```text
+/srv/mcpmark-state/
+├── baselines/
+│   ├── shopping-v1-pristine/{mysql,media,elasticsearch}
+│   ├── shopping-admin-v1-pristine/{mysql,media,elasticsearch}
+│   └── postmill-v1-pristine/{postgres,submission_images}
+└── runs/                       # MCPMark-managed per-task clones
+```
+
+Export each pristine baseline once with the scripts under `scripts/aenv/`.
+Do not mount a pristine directory as the writable `/aenv-data` volume.
+
+```env
+WEBARENA_STATE_BACKEND=external-state
+WEBARENA_STATE_ROOT=/srv/mcpmark-state
+WEBARENA_SNAPSHOT_DRIVER=reflink
+WEBARENA_MEDIA_MODE=readonly
+WEBARENA_RESET_TIMEOUT=300
+WEBARENA_KEEP_FAILED_STATE=false
+```
+
+`reflink` deliberately fails when the filesystem cannot provide copy-on-write;
+it never silently turns a task reset into a full 40–60 GB copy. Use
+`WEBARENA_SNAPSHOT_DRIVER=copy` only when the extra time and capacity are
+acceptable. `readonly` shares historical images while cloning mutable database
+and search state. Select `cow` for tasks that must upload or rewrite media.
+
+For every task MCPMark creates a unique container name and dynamic localhost
+port, prepares a token-owned state directory, and removes both in `finally`.
+The pristine baseline is not changed, and a cleanup request cannot remove a
+directory without a matching MCPMark manifest and ownership token.
+
+Operators can inspect the same lifecycle without running a model:
+
+```bash
+python -m src.mcp_services.playwright_webarena.state.state_cli \
+  --state-root /srv/mcpmark-state prepare \
+  --profile shopping_admin --run-id smoke-001
+
+python -m src.mcp_services.playwright_webarena.state.state_cli \
+  --state-root /srv/mcpmark-state inspect \
+  --profile shopping_admin --run-id smoke-001
+
+python -m src.mcp_services.playwright_webarena.state.state_cli \
+  --state-root /srv/mcpmark-state cleanup \
+  --profile shopping_admin --run-id smoke-001
+```
+
+The runtime images use the official AEnv sandbox base and expose Web on 8080,
+AEnv MCP on 8081, and official health on 49999. AEnv Hub upload is separate
+from remote execution: `enableStorage` creates or mounts a PVC but does not
+populate it from these baselines. Do not switch production evaluation to the
+remote AEnv provider until the platform supplies an approved datasource,
+snapshot/clone, or object-storage bootstrap path and the resulting service URL
+passes end-to-end Playwright verification.
+
 ## 1. Setup WebArena Environment (For Playwright-WebArena Tasks)
 ### 1.1 Download Docker Images
 
@@ -200,6 +265,12 @@ docker restart [container_name]
 - **Clear cache after URL changes**: Required for Magento environments
 
 ### Reset Environment
+
+With `WEBARENA_STATE_BACKEND=external-state`, reset means deleting only the
+per-task container and its token-owned run directory. The cached runtime image
+and pristine baseline remain. The commands below apply only to the legacy
+backend.
+
 ```bash
 # Stop and remove container
 docker stop [container_name]
