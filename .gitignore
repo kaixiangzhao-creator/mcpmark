@@ -5,6 +5,10 @@ CLAUDE.md
 results
 materials
 scripts
+!scripts/
+scripts/*
+!scripts/aenv/
+!scripts/aenv/*.sh
 !.github/scripts
 .nfs*
 .mcp_env

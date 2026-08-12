@@ -62,3 +62,19 @@ Notion 同步页面：<https://app.notion.com/p/3b9af8dad1e481a7a609d710894eb967
 - 已有 Shopping Admin AEnv 1.0.1 的 inspect size 约 2.74GB，但本地 layer size 约 13GB。
 - 约 3.89GB layer 来自构建中的递归 `chown`，需要以 `COPY --chown` 和预先裁剪替代。
 - 为满足“不拉起 10GB 以上 Docker”，验收标准升级为 registry/inspect 和本地解包 layer 双门禁。
+
+## 2026-08-12
+
+### M3 Shopping Admin 本地 runtime
+
+- `apply_patch` 权限故障已由用户调整执行配置后解除；临时文件创建、读取、删除均通过。
+- 官方 AEnv 0.1.96 local builder 固定使用 `pull=true`，不会直接采用仅本机加载的 donor 镜像。
+- 启动只监听 `127.0.0.1:5000` 的本机 registry，作为 donor 引用适配层；未修改官方 SDK。
+- 导出 Shopping Admin pristine baseline：437MB、2088 文件，数据和 manifest 均位于 Git 仓库外。
+- 使用 `aenv build --no-push` 构建 runtime 成功。
+- 最终镜像 inspect size 为 1,654,501,329 bytes，本地累计 layer size 为 5.93GB。
+- MariaDB、Elasticsearch、Nginx、PHP-FPM、Redis、Mailcatcher、AEnv 全部 RUNNING。
+- 官方 health 与 AEnv health 均为 HTTP 200；`/admin` 与原镜像对照均为 302；样例媒体为 200。
+- 真实 MCP 调用 `configure_public_url` 成功。
+- 详细证据：`docs/aenv/M3_SHOPPING_ADMIN_LOCAL_VALIDATION.md`。
+- 当前只完成本地验收，尚未上传 2.0.0，也未解决远程 PVC baseline 导入。
