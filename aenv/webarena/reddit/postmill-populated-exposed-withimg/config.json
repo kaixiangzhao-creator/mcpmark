@@ -1,41 +1,47 @@
 {
-  "name": "postmill-populated-exposed-withimg",
-  "description": "AEnv sandbox wrapper for a SWE-bench sweb.eval image",
-  "version": "2.0.0",
-  "tags": [
-    "swebench",
-    "sweb"
-  ],
-  "status": "Ready",
-  "owner": "LLM Team",
-  "codeUrl": "",
-  "artifacts": [],
-  "buildConfig": {
-    "dockerfile": "./Dockerfile",
-    "type": "remote"
-  },
-  "testConfig": {
-    "script": ""
-  },
-  "deployConfig": {
-    "backend": "sandbox",
-    "cpu": "2",
-    "memory": "4Gi",
-    "warm_size": 1,
-    "os": "linux",
-    "ephemeralStorage": "10Gi",
-    "environmentVariables": {
-      "SWEB_HOME": "/home/user/sweb",
-      "TESTBED_PATH": "/home/user/sweb/testbed",
-      "CONDA_DIR": "/opt/miniconda3"
+    "name": "postmill-populated-exposed-withimg",
+    "description": "MCPMark Postmill on the official AEnv sandbox base with external baseline data.",
+    "version": "2.0.0",
+    "tags": [
+        "webarena",
+        "reddit",
+        "postmill",
+        "external-state"
+    ],
+    "status": "Ready",
+    "owner": "AI Infra",
+    "codeUrl": "",
+    "artifacts": [
+        {
+            "type": "image",
+            "content": "harbor.shopeemobile.com/ai-infra/postmill-populated-exposed-withimg:2.0.0"
+        }
+    ],
+    "buildConfig": {
+        "dockerfile": "./Dockerfile",
+        "type": "local",
+        "image_name": "postmill-populated-exposed-withimg",
+        "image_tag": "2.0.0"
     },
-    "service": {
-      "replicas": 1,
-      "port": 8081,
-      "enableStorage": false,
-      "storageName": "aenv",
-      "storageSize": "10Gi",
-      "mountPath": "/home/admin/data"
+    "testConfig": {
+        "script": ""
+    },
+    "deployConfig": {
+        "backend": "sandbox",
+        "sandbox_template": "base",
+        "cpu": "4",
+        "memory": "8Gi",
+        "warm_size": 0,
+        "os": "linux",
+        "ephemeralStorage": "20Gi",
+        "environmentVariables": {},
+        "service": {
+            "replicas": 1,
+            "port": 8080,
+            "enableStorage": true,
+            "storageName": "mcpmark-postmill-baseline-v1",
+            "storageSize": "80Gi",
+            "mountPath": "/aenv-data"
+        }
     }
-  }
 }

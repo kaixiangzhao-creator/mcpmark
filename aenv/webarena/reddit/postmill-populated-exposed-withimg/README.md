@@ -1,23 +1,20 @@
-# sweb-sandbox template
+# Postmill AEnv runtime
 
-This template wraps a SWE-bench `sweb.eval.x86_64.*` image inside the sandbox base image used by AEnv.
+Official AEnv 0.1.96 sandbox runtime for MCPMark's Reddit/Postmill category.
+The image excludes PostgreSQL data and `public/submission_images`. A mounted
+`/aenv-data` must provide writable `postgres` and `submission_images`
+directories cloned from the versioned pristine baseline.
 
-## What it does
+Seed the loopback donor registry from the repository root, then build here:
 
-- Uses the selected `SWEB_SOURCE_IMAGE` as a source stage
-- Keeps `sts_ai_agent_sandbox/base` as the final runtime layer
-- Copies `/testbed` and `/opt/miniconda3` from the source image
-- Starts the standard AEnv sandbox entrypoint
+```bash
+scripts/aenv/seed_source_registry.sh \
+  postmill-populated-exposed-withimg:latest \
+  localhost:5000/mcpmark/webarena-postmill-source:withimg
 
-## Before building
+../../../../.venv-aenv/bin/aenv build --no-push
+```
 
-Update `SWEB_SOURCE_IMAGE` in `Dockerfile` to the specific SWE-bench image you want to wrap.
-
-## Validation helpers
-
-The generated environment includes:
-
-- `image_info()`
-- `repo_listing(path, limit=50)`
-- `basic_health(task="sweb-sandbox")`
-
+The final stage remains `sts_ai_agent_sandbox/base:v0.1.2`, the runtime user is
+the official `user`, and ports 8080, 8081 and 49999 serve Web, AEnv MCP and the
+official sandbox health endpoint respectively.
