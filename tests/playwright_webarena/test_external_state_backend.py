@@ -71,6 +71,17 @@ class ExternalStateBackendTest(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             backend.prepare("shopping_admin", "same")
 
+    def test_parallel_slots_are_independent(self) -> None:
+        backend = ExternalStateBackend(self.root, snapshot_driver="copy")
+        first = backend.prepare("shopping_admin", "parallel-a")
+        second = backend.prepare("shopping_admin", "parallel-b")
+        (first.state_directory / "mysql" / "only-a.txt").write_text("a")
+        self.assertFalse(
+            (second.state_directory / "mysql" / "only-a.txt").exists()
+        )
+        backend.cleanup(first.cleanup_token, first.state_directory)
+        self.assertTrue(second.state_directory.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -61,6 +61,9 @@ def _cleanup(args: argparse.Namespace) -> int:
         / args.profile
         / args.run_id
     )
+    if not state.exists():
+        print(json.dumps({"cleaned": True, "state_directory": str(state)}))
+        return 0
     record = _backend(args).inspect(state)
     _backend(args).cleanup(str(record["cleanup_token"]), state)
     print(json.dumps({"cleaned": True, "state_directory": str(state)}))
