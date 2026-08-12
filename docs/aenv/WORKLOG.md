@@ -78,3 +78,46 @@ Notion 同步页面：<https://app.notion.com/p/3b9af8dad1e481a7a609d710894eb967
 - 真实 MCP 调用 `configure_public_url` 成功。
 - 详细证据：`docs/aenv/M3_SHOPPING_ADMIN_LOCAL_VALIDATION.md`。
 - 当前只完成本地验收，尚未上传 2.0.0，也未解决远程 PVC baseline 导入。
+
+### M3 Postmill 本地 runtime
+
+- 官方 `aenv build --no-push` 构建 `2.0.0` 成功，final stage 为官方 sandbox base。
+- inspect size 1,085,580,495 bytes，累计 layer 4.39GB，双口径均小于 10GB。
+- 外置 baseline 44GB：PostgreSQL 约 4.8GB、31,467 张图片；图片和原镜像字节一致。
+- Web、官方 health、AEnv health、reward 和两个重置 slot 均通过。
+- Git commit：`4b3da27 feat(aenv): add slim Postmill runtime`。
+
+### Harbor、AEnv Hub 与远程控制面
+
+- Admin/Postmill `2.0.0` 已推送 Harbor，并通过官方 0.1.96 `aenv push --force`
+  上传 AEnv Hub；`aenv get` 返回正确版本和 artifact。
+- `aenv service create --enable-storage` 的表面 Python 错误为
+  `APIResponse() argument after ** must be a mapping, not NoneType`。
+- 对同一官方 endpoint 的脱敏单请求诊断得到 HTTP 404、JSON body `null`，确认是
+  `/env-service` 控制面路由/能力不可用，而不是镜像构建日志。
+- `aenv instance create` 连续超时；随后解析官方实例列表 291 条，没有发现目标环境，
+  因此没有把上传成功误报为远程运行成功。
+- 官方 storage 配置只说明 PVC 创建/挂载，尚未发现 baseline 导入或逐题快照 clone API。
+
+### M3 Shopping runtime 进行中
+
+- BuildKit 仅用于在本机预裁剪 67GB source parent；最终发布镜像仍由官方
+  `aenv build --no-push` 和官方 sandbox base 构建。
+- runtime ID `sha256:8f3018475abd...`，inspect size 2,465,299,555 bytes，构建完成时
+  cumulative layer 9.3GB，双硬门禁均通过。
+- donor registry 首次失败的真实日志为 `/data` 分区 `no space left on device`；仅删除
+  可恢复的匿名 registry volume，改为 `/home/toc/SSE/mcpmark-registry` bind mount。
+- Shopping pristine baseline 正在导出约 448 万媒体文件；完成后执行本地双槽、Web、
+  DB/ES、图片字节、MCP/reward 和 MCPMark manager 验收。
+
+### M5 MCPMark 适配
+
+- `7057b80`：新增 `external-state` backend、唯一 run、reflink/copy driver、只读媒体、
+  动态容器/端口、token 所有权清理、失败回滚；evaluator cleanup 放入 `finally`。
+- `45eff71`：新增状态 CLI、迁移说明和验证报告。
+- `cd96e81`：Admin 与 Postmill 真实 manager setup/cleanup 通过，并暴露 Web/AEnv/health URL。
+- `39ece8c`：新增 gated 官方 AEnv provider；固定共享 PVC 被拒绝，必须使用包含
+  `{run_id}` 的外部预置 snapshot PVC。真实控制面 404 时 fail closed、无资源残留。
+- `ad0b5af`：setup 失败保留底层错误，不再全部折叠成 `State Duplication Error`。
+- 单元测试目前 6 个 dependency-light 方法通过；完整 runtime 未安装时 evaluator 异常
+  cleanup 测试跳过，需在 CI/项目环境执行。
