@@ -33,7 +33,7 @@ class ExternalStateBackendTest(unittest.TestCase):
         self.assertFalse(prepared.mounts[0].readonly)
         self.assertTrue(prepared.mounts[1].readonly)
         self.assertEqual(prepared.mounts[1].target, "/aenv-data/media")
-        self.assertNotIn("rw", prepared.mounts[0].docker_argument())
+        self.assertFalse(prepared.mounts[0].docker_argument().endswith(",readonly"))
         self.assertTrue(prepared.mounts[1].docker_argument().endswith(",readonly"))
         self.assertEqual(
             (prepared.state_directory / "mysql" / "golden.txt").read_text(),

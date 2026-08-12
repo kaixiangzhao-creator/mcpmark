@@ -14,7 +14,7 @@
     "artifacts": [
         {
             "type": "image",
-            "content": "ai-01.my.harbor.shopeemobile.com/ai-infra/postmill-populated-exposed-withimg:2.0.0"
+            "content": "ai-01.my.harbor.shopeemobile.com/ai-infra/postmill-populated-exposed-withimg@sha256:1bcb4ccda34e490df5a8ca7eeafde6ea9bd700dddfc3d18b8add8c71ca7eca26"
         }
     ],
     "buildConfig": {

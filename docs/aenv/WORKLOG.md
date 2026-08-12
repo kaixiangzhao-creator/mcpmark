@@ -99,16 +99,24 @@ Notion 同步页面：<https://app.notion.com/p/3b9af8dad1e481a7a609d710894eb967
   因此没有把上传成功误报为远程运行成功。
 - 官方 storage 配置只说明 PVC 创建/挂载，尚未发现 baseline 导入或逐题快照 clone API。
 
-### M3 Shopping runtime 进行中
+### M3 Shopping runtime 完成
 
 - BuildKit 仅用于在本机预裁剪 67GB source parent；最终发布镜像仍由官方
   `aenv build --no-push` 和官方 sandbox base 构建。
-- runtime ID `sha256:8f3018475abd...`，inspect size 2,465,299,555 bytes，构建完成时
-  cumulative layer 9.3GB，双硬门禁均通过。
-- donor registry 首次失败的真实日志为 `/data` 分区 `no space left on device`；仅删除
-  可恢复的匿名 registry volume，改为 `/home/toc/SSE/mcpmark-registry` bind mount。
-- Shopping pristine baseline 正在导出约 448 万媒体文件；完成后执行本地双槽、Web、
-  DB/ES、图片字节、MCP/reward 和 MCPMark manager 验收。
+- 修复 donor 遗留 Elasticsearch data 目录导致 `node.lock` 权限失败和进程重启；发布
+  Dockerfile 现有构建期断言，保证 data 是 `/aenv-data/elasticsearch` 软链接。
+- 修正版 runtime ID 为 `sha256:524669203eb69b6c95be3b0a8787cd6bdef536ce52a7a4b9f63528476dbc12d3`；
+  inspect size 1,787,494,859 bytes，cumulative layer 6.37GB，双硬门禁均通过。
+- Shopping pristine baseline 已完成：55GB、4,481,037 文件；manifest SHA-256 为
+  `82f8ffd08c4076859aa8d9679f5026b8fd4cbc0593f197305254f7766f30547d`。
+- MCPMark 真实 manager smoke 通过：Web/health/reward、104,368 条商品、代表图片字节、
+  Elasticsearch 稳定 PID、只读媒体和 cleanup 全部符合预期。
+- 第一状态槽写入数据库 marker 后清理，第二状态槽不存在该 marker，完成逐题 pristine
+  重置的直接证明。
+- 三个环境的 Harbor 远端 manifest digest 已逐一核对；AEnv Hub artifact 全部固定为
+  不可变 `repo@sha256`，避免 mutable tag 的 sandbox runtime cache 风险。Shopping
+  `shopping-final-0712@2.0.0` status 为 2。
+- Git commit：`ba2f7af build(aenv): slim shopping runtime with external state`。
 
 ### M5 MCPMark 适配
 
@@ -119,5 +127,5 @@ Notion 同步页面：<https://app.notion.com/p/3b9af8dad1e481a7a609d710894eb967
 - `39ece8c`：新增 gated 官方 AEnv provider；固定共享 PVC 被拒绝，必须使用包含
   `{run_id}` 的外部预置 snapshot PVC。真实控制面 404 时 fail closed、无资源残留。
 - `ad0b5af`：setup 失败保留底层错误，不再全部折叠成 `State Duplication Error`。
-- 单元测试目前 6 个 dependency-light 方法通过；完整 runtime 未安装时 evaluator 异常
+- 单元测试目前 8 个 dependency-light 方法通过；完整 runtime 未安装时 evaluator 异常
   cleanup 测试跳过，需在 CI/项目环境执行。

@@ -71,7 +71,7 @@ runtime 镜像即可重置有状态数据。
 ## 远程状态与尚未通过的门禁
 
 - 本版本已推送 Harbor，并通过官方 CLI 上传 AEnv Hub；`aenv get` 可返回
-  `postmill-populated-exposed-withimg@2.0.0` 及正确 artifact；
+  `postmill-populated-exposed-withimg@2.0.0` 及不可变 `repo@sha256` artifact；
 - 远程 PVC 尚未导入 baseline；
 - 当前控制面的 `/env-service` endpoint 返回 HTTP 404/JSON `null`，因此尚未创建并验证真实远程 service；
 - MCPMark `external-state` provider 已完成第一阶段接入，AEnv 远程 provider 仍受 PVC baseline 导入/快照机制阻塞。

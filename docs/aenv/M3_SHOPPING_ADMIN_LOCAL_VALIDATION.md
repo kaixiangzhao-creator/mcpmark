@@ -70,7 +70,7 @@ MariaDB crash recovery 会修改它；该结果被废弃。正式 smoke 从重�
 ## 远程状态与尚未通过的门禁
 
 - 本版本已推送 Harbor，并通过官方 CLI 上传 AEnv Hub；`aenv get` 可返回
-  `shopping-admin-final-0719@2.0.0` 及正确 artifact；
+  `shopping-admin-final-0719@2.0.0` 及不可变 `repo@sha256` artifact；
 - 远程 PVC 尚未导入 baseline；
 - `/env-service` 诊断返回 HTTP 404 和 JSON `null`，未创建远程 service；
 - `aenv instance create` 超时，完整实例列表中没有该环境；

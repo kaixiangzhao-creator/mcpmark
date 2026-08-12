@@ -96,8 +96,14 @@ manifest SHA-256 为：
 
 ## 远程状态
 
-Shopping 本地 runtime 与外置 baseline 的组合已经通过。Harbor/AEnv Hub 上传状态在本次
-上传完成后补记。Admin 与 Postmill 已证明 AEnv Hub 上传不等于远程运行：当前
-`/env-service` 返回 HTTP 404/JSON `null`，instance create 也没有留下实例；此外尚缺官方
-baseline→逐题 PVC snapshot/clone 机制。因此即使 Hub 上传成功，远程逐题实例仍只能标记为
-受阻，直到两个平台前置条件解决。
+Shopping 本地 runtime 与外置 baseline 的组合已经通过。版本 `2.0.0` 已推送到
+`ai-01.my.harbor.shopeemobile.com`，远端 manifest digest 与本地镜像 ID 一致，均为
+`sha256:524669203eb69b6c95be3b0a8787cd6bdef536ce52a7a4b9f63528476dbc12d3`；随后已通过
+官方 CLI 上传 AEnv Hub，`aenv get shopping-final-0712 -v 2.0.0` 可返回 Ready 元数据和
+正确的 Harbor artifact。artifact 使用不可变 `repo@sha256` 引用，避免同版本 mutable tag
+被 sandbox runtime cache 解析到旧镜像。
+
+Admin 与 Postmill 已证明 AEnv Hub 上传不等于远程运行：当前 `/env-service` 返回 HTTP
+404/JSON `null`，instance create 也没有留下实例；此外尚缺官方 baseline→逐题 PVC
+snapshot/clone 机制。因此即使 Hub 上传成功，远程逐题实例仍只能标记为受阻，直到两个
+平台前置条件解决。

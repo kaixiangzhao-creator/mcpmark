@@ -13,7 +13,7 @@
     "artifacts": [
         {
             "type": "image",
-            "content": "harbor.shopeemobile.com/ai-infra/shopping-final-0712:2.0.0"
+            "content": "ai-01.my.harbor.shopeemobile.com/ai-infra/shopping-final-0712@sha256:524669203eb69b6c95be3b0a8787cd6bdef536ce52a7a4b9f63528476dbc12d3"
         }
     ],
     "buildConfig": {
