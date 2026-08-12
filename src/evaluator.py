@@ -212,86 +212,64 @@ class MCPEvaluator:
         display_time = self._format_duration(setup_time)
         logger.info(f"└─ Completed in {display_time}\n")
         
-        # ------------------------------------------------------------------
-        # Stage 2: Execute the task using the agent
-        # ------------------------------------------------------------------
-        logger.info(
-            "┌─ Stage 2: Execute ───────────────────────────────────────────────────"
-        )
-
-        agent_execution_start_time = time.time()
-
-        # Get task instruction from task manager
-        task_instruction = self.task_manager.get_task_instruction(task)
-
-        # Prepare task_output_dir and tool call log file
-        task_output_dir = self._get_task_output_dir(task)
-        task_output_dir.mkdir(parents=True, exist_ok=True)
-        execution_log_path = task_output_dir / "execution.log"
-
-        # Remove existing execution.log to ensure clean start
-        if execution_log_path.exists():
-            execution_log_path.unlink()
-
-        # Execute with agent
-        agent_result = self.agent.execute_sync(
-            task_instruction, str(execution_log_path)
-        )
-
-        agent_execution_time = time.time() - agent_execution_start_time
-        
-        # Extract actual model name from LiteLLM response
-        if agent_result.get("litellm_run_model_name"):
-            self.litellm_run_model_name = agent_result["litellm_run_model_name"]
-
-        # Write messages.json to task_output_dir
-        messages_path = task_output_dir / "messages.json"
-        self.results_reporter.save_messages_json(
-            agent_result.get("output", []), messages_path
-        )
-
-        # Set service-specific environment variables for verification scripts
-        self.state_manager.set_verification_environment(str(messages_path))
-        logger.info(f"└─ Completed in {self._format_duration(agent_execution_time)}\n")
-
-        # ------------------------------------------------------------------
-        # Stage 3: Verify
-        # ------------------------------------------------------------------
-        logger.info(
-            "┌─ Stage 3: Verify ────────────────────────────────────────────────────"
-        )
-        verify_start_time = time.time()
         try:
+            # --------------------------------------------------------------
+            # Stage 2: Execute the task using the agent
+            # --------------------------------------------------------------
+            logger.info(
+                "┌─ Stage 2: Execute ───────────────────────────────────────────────────"
+            )
+            agent_execution_start_time = time.time()
+            task_instruction = self.task_manager.get_task_instruction(task)
+            task_output_dir = self._get_task_output_dir(task)
+            task_output_dir.mkdir(parents=True, exist_ok=True)
+            execution_log_path = task_output_dir / "execution.log"
+            if execution_log_path.exists():
+                execution_log_path.unlink()
+
+            agent_result = self.agent.execute_sync(
+                task_instruction, str(execution_log_path)
+            )
+            agent_execution_time = time.time() - agent_execution_start_time
+            if agent_result.get("litellm_run_model_name"):
+                self.litellm_run_model_name = agent_result["litellm_run_model_name"]
+
+            messages_path = task_output_dir / "messages.json"
+            self.results_reporter.save_messages_json(
+                agent_result.get("output", []), messages_path
+            )
+            self.state_manager.set_verification_environment(str(messages_path))
+            logger.info(
+                f"└─ Completed in {self._format_duration(agent_execution_time)}\n"
+            )
+
+            # --------------------------------------------------------------
+            # Stage 3: Verify
+            # --------------------------------------------------------------
+            logger.info(
+                "┌─ Stage 3: Verify ────────────────────────────────────────────────────"
+            )
+            verify_start_time = time.time()
             result = self.task_manager.execute_task(task, agent_result)
+            verify_time = time.time() - verify_start_time
+            logger.info(f"└─ Completed in {self._format_duration(verify_time)}\n")
+
+            task_total_time = time.time() - task_start_time
+            result.agent_execution_time = agent_execution_time
+            result.task_execution_time = task_total_time
+            return result
         finally:
-            # Clean up environment variables
             import os
 
             os.environ.pop("MCP_MESSAGES", None)
             os.environ.pop("MCP_GITHUB_TOKEN", None)
-            
-        verify_time = time.time() - verify_start_time
-        logger.info(f"└─ Completed in {self._format_duration(verify_time)}\n")
-
-        # ------------------------------------------------------------------
-        # Stage 4: Clean up
-        # ------------------------------------------------------------------
-        logger.info(
-            "┌─ Stage 4: Cleanup ───────────────────────────────────────────────────"
-        )
-        cleanup_start_time = time.time()
-        self.state_manager.clean_up(task)
-        cleanup_time = time.time() - cleanup_start_time
-        logger.info(f"└─ Completed in {self._format_duration(cleanup_time)}\n")
-
-        # Calculate total task execution time
-        task_total_time = time.time() - task_start_time
-
-        # Add timing information to the result
-        result.agent_execution_time = agent_execution_time
-        result.task_execution_time = task_total_time
-
-        return result
+            logger.info(
+                "┌─ Stage 4: Cleanup ───────────────────────────────────────────────────"
+            )
+            cleanup_start_time = time.time()
+            self.state_manager.clean_up(task)
+            cleanup_time = time.time() - cleanup_start_time
+            logger.info(f"└─ Completed in {self._format_duration(cleanup_time)}\n")
 
     def run_evaluation(self, task_filter: str) -> EvaluationReport:
         """

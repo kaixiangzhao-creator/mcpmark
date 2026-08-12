@@ -13,6 +13,7 @@ from __future__ import annotations
 import socket
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -23,6 +24,7 @@ import requests
 from src.base.state_manager import BaseStateManager, InitialStateInfo
 from src.base.task_manager import BaseTask
 from src.logger import get_logger
+from .state import ExternalStateBackend, PreparedState
 
 logger = get_logger(__name__)
 
@@ -94,6 +96,13 @@ class PlaywrightStateManager(BaseStateManager):
         viewport_height: Optional[int] = None,
         # Debug mode - skip container cleanup
         skip_cleanup: bool = False,
+        state_backend: str = "legacy-docker",
+        state_root: str = "/srv/mcpmark-state",
+        snapshot_driver: str = "reflink",
+        runtime_registry: str = "",
+        media_mode: str = "readonly",
+        reset_timeout: int = 300,
+        keep_failed_state: bool = False,
     ) -> None:
         super().__init__(service_name="playwright_webarena")
 
@@ -111,9 +120,25 @@ class PlaywrightStateManager(BaseStateManager):
         )
 
         self.skip_cleanup = skip_cleanup
+        self.state_backend_name = state_backend
+        self.reset_timeout = reset_timeout
+        self.keep_failed_state = keep_failed_state
+        self.external_backend = None
+        if state_backend == "external-state":
+            self.external_backend = ExternalStateBackend(
+                state_root=state_root,
+                snapshot_driver=snapshot_driver,
+                media_mode=media_mode,
+                runtime_registry=runtime_registry,
+            )
+        elif state_backend != "legacy-docker":
+            raise ValueError(
+                "WEBARENA_STATE_BACKEND must be legacy-docker or external-state"
+            )
 
         logger.info(
-            "Initialized WebArenaStateManager (image=%s, container=%s, port=%s, skip_cleanup=%s)",
+            "Initialized WebArenaStateManager (backend=%s, image=%s, container=%s, port=%s, skip_cleanup=%s)",
+            self.state_backend_name,
             self.config.image_name,
             self.config.container_name,
             self.config.host_port,
@@ -170,6 +195,21 @@ class PlaywrightStateManager(BaseStateManager):
         self._run_cmd(["docker", "stop", name])
         # Remove (ignore errors if not exists)
         self._run_cmd(["docker", "rm", name])
+
+    def _mapped_host_port(self, container_name: str, container_port: int) -> int:
+        result = self._run_cmd(
+            ["docker", "port", container_name, f"{container_port}/tcp"]
+        )
+        if result.returncode != 0 or not result.stdout.strip():
+            raise RuntimeError(
+                f"cannot resolve mapped port for {container_name}: {result.stderr.strip()}"
+            )
+        return int(result.stdout.strip().rsplit(":", 1)[-1])
+
+    def _cleanup_prepared_state(self, prepared: PreparedState) -> None:
+        if self.external_backend is None:
+            return
+        self.external_backend.cleanup(prepared.cleanup_token, prepared.state_directory)
 
     def _container_is_running(self, name: str) -> bool:
         result = self._run_cmd(
@@ -401,6 +441,8 @@ class PlaywrightStateManager(BaseStateManager):
     # ---- BaseStateManager hooks -----------------------------------------
 
     def _create_initial_state(self, task: BaseTask) -> Optional[InitialStateInfo]:
+        if self.external_backend is not None:
+            return self._create_external_initial_state(task)
         try:
             # Dynamically update config based on task category
             if hasattr(task, 'category_id') and task.category_id in self.CATEGORY_CONFIGS:
@@ -483,6 +525,86 @@ class PlaywrightStateManager(BaseStateManager):
             logger.error("| Failed to create WebArena initial state: %s", exc)
             return None
 
+    def _create_external_initial_state(
+        self, task: BaseTask
+    ) -> Optional[InitialStateInfo]:
+        category = getattr(task, "category_id", "")
+        if category not in self.CATEGORY_CONFIGS:
+            logger.error("| Unsupported WebArena category: %s", category)
+            return None
+
+        prepared = None
+        container_name = ""
+        try:
+            run_hint = f"{category}-{uuid.uuid4().hex[:12]}"
+            prepared = self.external_backend.prepare(category, run_hint)
+            category_config = self.CATEGORY_CONFIGS[category]
+            self.config.image_name = str(prepared.metadata["runtime_image"])
+            self.config.container_name = f"mcpmark-{prepared.run_id}"
+            self.config.container_port = 8080
+            self.config.readiness_path = category_config["readiness_path"]
+            self.config.readiness_timeout_seconds = self.reset_timeout
+            container_name = self.config.container_name
+
+            run_cmd = ["docker", "run", "--name", container_name]
+            for mount in prepared.mounts:
+                run_cmd.extend(["--mount", mount.docker_argument()])
+            for key, value in prepared.environment.items():
+                run_cmd.extend(["--env", f"{key}={value}"])
+            run_cmd.extend(
+                ["-p", f"127.0.0.1::{self.config.container_port}", "-d", self.config.image_name]
+            )
+            result = self._run_cmd(run_cmd)
+            if result.returncode != 0:
+                raise RuntimeError(f"docker run failed: {result.stderr.strip()}")
+
+            self.config.host_port = self._mapped_host_port(
+                container_name, self.config.container_port
+            )
+            if category == "shopping":
+                self._configure_shopping_post_start()
+            elif category == "shopping_admin":
+                self._configure_shopping_admin_post_start()
+            if not self._wait_until_ready():
+                raise RuntimeError(f"runtime readiness timed out: {self._get_entry_url()}")
+
+            entry_url = self._get_entry_url()
+            common_metadata = {
+                "backend": "external-state",
+                "docker_image": self.config.image_name,
+                "container_name": container_name,
+                "host_port": self.config.host_port,
+                "container_port": self.config.container_port,
+                "base_url": entry_url,
+                "category": category,
+                "cleanup_token": prepared.cleanup_token,
+                "state_directory": str(prepared.state_directory),
+            }
+            self.track_resource("docker_container", container_name, common_metadata)
+            self.track_resource(
+                "external_state",
+                prepared.cleanup_token,
+                {
+                    "state_directory": str(prepared.state_directory),
+                    "container_name": container_name,
+                },
+            )
+            return InitialStateInfo(
+                state_id=container_name,
+                state_url=entry_url,
+                metadata=common_metadata,
+            )
+        except Exception as exc:
+            logger.error("| Failed to create external WebArena state: %s", exc)
+            if container_name:
+                self._stop_and_remove_container(container_name)
+            if prepared is not None and not self.keep_failed_state:
+                try:
+                    self._cleanup_prepared_state(prepared)
+                except Exception as cleanup_exc:
+                    logger.error("| Failed to rollback external state: %s", cleanup_exc)
+            return None
+
     def _store_initial_state_info(
         self, task: BaseTask, state_info: InitialStateInfo
     ) -> None:
@@ -503,7 +625,13 @@ class PlaywrightStateManager(BaseStateManager):
             return True
 
         try:
-            self._stop_and_remove_container(self.config.container_name)
+            metadata = getattr(task, "docker_metadata", None) or {}
+            container_name = metadata.get("container_name", self.config.container_name)
+            self._stop_and_remove_container(container_name)
+            if metadata.get("backend") == "external-state":
+                self.external_backend.cleanup(
+                    metadata["cleanup_token"], metadata["state_directory"]
+                )
             return True
         except Exception as exc:
             logger.error("| Failed to cleanup container for %s: %s", task.name, exc)
@@ -521,6 +649,11 @@ class PlaywrightStateManager(BaseStateManager):
             if resource.get("type") == "docker_container":
                 self._stop_and_remove_container(resource["id"])
                 return True
+            if resource.get("type") == "external_state":
+                self.external_backend.cleanup(
+                    resource["id"], resource["metadata"]["state_directory"]
+                )
+                return True
             logger.warning(
                 "| Unknown resource type for cleanup: %s", resource.get("type")
             )
@@ -535,7 +668,7 @@ class PlaywrightStateManager(BaseStateManager):
         agents should navigate to when starting tasks.
         """
         return {
-            "environment": "webarena-docker",
+            "environment": f"webarena-{self.state_backend_name}",
             "base_url": self._get_entry_url(),
             "docker": {
                 "image": self.config.image_name,
