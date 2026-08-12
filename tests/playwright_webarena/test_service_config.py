@@ -6,6 +6,7 @@ from unittest.mock import Mock
 from src.mcp_services.playwright_webarena.playwright_state_manager import (
     PlaywrightStateManager,
 )
+from src.mcp_services.playwright_webarena.state.aenv_backend import AEnvServiceBackend
 from src.services import SERVICES
 
 
@@ -39,6 +40,12 @@ class WebArenaServiceConfigTest(unittest.TestCase):
         self.assertEqual(manager._mapped_host_port("runtime", 8080), 20000)
         self.assertEqual(manager._mapped_host_port("runtime", 8081), 20001)
         self.assertEqual(manager._mapped_host_port("runtime", 49999), 20002)
+
+    def test_aenv_requires_a_unique_preprovisioned_pvc(self) -> None:
+        with self.assertRaisesRegex(ValueError, "must include"):
+            AEnvServiceBackend("shared-baseline-pvc")
+        backend = AEnvServiceBackend("mcpmark-{category}-{run_id}")
+        self.assertIn("{run_id}", backend.pvc_name_template)
 
 
 if __name__ == "__main__":

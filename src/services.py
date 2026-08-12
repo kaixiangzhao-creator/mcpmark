@@ -418,8 +418,8 @@ SERVICES = {
                 "env_var": "WEBARENA_STATE_BACKEND",
                 "default": "legacy-docker",
                 "required": False,
-                "description": "State backend: legacy-docker or external-state",
-                "validator": "in:legacy-docker,external-state",
+                "description": "State backend: legacy-docker, external-state, or aenv",
+                "validator": "in:legacy-docker,external-state,aenv",
             },
             "state_root": {
                 "env_var": "WEBARENA_STATE_ROOT",
@@ -461,6 +461,18 @@ SERVICES = {
                 "description": "Keep failed external state slots for debugging",
                 "transform": "bool",
             },
+            "aenv_pvc_name_template": {
+                "env_var": "WEBARENA_AENV_PVC_NAME_TEMPLATE",
+                "default": "",
+                "required": False,
+                "description": "Pre-provisioned per-task PVC template; must include {run_id}",
+            },
+            "aenv_system_url": {
+                "env_var": "WEBARENA_AENV_SYSTEM_URL",
+                "default": "",
+                "required": False,
+                "description": "Optional official AEnv scheduler URL override",
+            },
         },
         "components": {
             "task_manager": "src.mcp_services.playwright_webarena.playwright_task_manager.PlaywrightTaskManager",
@@ -483,6 +495,8 @@ SERVICES = {
                 "media_mode": "media_mode",
                 "reset_timeout": "reset_timeout",
                 "keep_failed_state": "keep_failed_state",
+                "aenv_pvc_name_template": "aenv_pvc_name_template",
+                "aenv_system_url": "aenv_system_url",
             },
             "login_helper": {
                 "browser": "browser",

@@ -69,6 +69,39 @@ remote AEnv provider until the platform supplies an approved datasource,
 snapshot/clone, or object-storage bootstrap path and the resulting service URL
 passes end-to-end Playwright verification.
 
+### AEnv service backend (gated)
+
+Install the official pinned client in MCPMark's execution environment:
+
+```bash
+pip install shopee-aenvironment==0.1.96 --index-url https://pypi.shopee.io
+```
+
+The `aenv` backend intentionally accepts only an already provisioned,
+task-specific PVC. An external CSI/snapshot controller must clone the pristine
+baseline before MCPMark starts the task. The template must include `{run_id}`;
+a fixed shared mutable PVC is rejected because it cannot guarantee reset or
+parallel isolation.
+
+```env
+WEBARENA_STATE_BACKEND=aenv
+WEBARENA_AENV_PVC_NAME_TEMPLATE=mcpmark-{category}-{run_id}
+# Optional; otherwise the official CLI configuration resolves the URL:
+WEBARENA_AENV_SYSTEM_URL=
+COMPASS_ADMIN_API_KEY=***
+```
+
+The provider uses the official `AEnvSchedulerClient` to mount the existing PVC
+at `/aenv-data`, wait for the service URL, and delete the service without
+deleting storage during cleanup. For Magento it updates
+`WEBARENA_PUBLIC_BASE_URL` through the official service update API. It does not
+create an empty PVC or claim to clone baseline data itself.
+
+As of the validation recorded in
+`docs/aenv/M4_MCPMARK_EXTERNAL_STATE_VALIDATION.md`, the live control plane
+returns HTTP 404/JSON `null` for `/env-service`; this backend therefore fails
+closed and leaves no tracked resource until that platform route is available.
+
 ## 1. Setup WebArena Environment (For Playwright-WebArena Tasks)
 ### 1.1 Download Docker Images
 

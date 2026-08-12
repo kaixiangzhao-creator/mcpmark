@@ -87,3 +87,16 @@ official configuration can create/mount a PVC, but no documented baseline
 upload or per-task PVC snapshot/clone API has been identified. Production AEnv
 acceptance requires both a working service endpoint and an approved baseline
 population/reset mechanism.
+
+## AEnv provider implementation
+
+MCPMark now accepts `WEBARENA_STATE_BACKEND=aenv`. It lazily imports the
+official 0.1.96 SDK and uses `AEnvSchedulerClient` for service create/get/update
+and delete. It requires a pre-provisioned PVC template containing `{run_id}`;
+the provider never creates an empty volume and never reuses a fixed mutable
+volume. Cleanup deletes the service with `delete_storage=False`.
+
+Running this provider against the live endpoint reproduced the official client
+error and returned `setup_ok=False`, with an empty tracked-resource list. This
+proves MCPMark fails closed at the current platform blocker rather than falling
+back to an incorrect stateless environment.

@@ -24,7 +24,7 @@ import requests
 from src.base.state_manager import BaseStateManager, InitialStateInfo
 from src.base.task_manager import BaseTask
 from src.logger import get_logger
-from .state import ExternalStateBackend, PreparedState
+from .state import AEnvServiceBackend, ExternalStateBackend, PreparedState
 
 logger = get_logger(__name__)
 
@@ -103,6 +103,8 @@ class PlaywrightStateManager(BaseStateManager):
         media_mode: str = "readonly",
         reset_timeout: int = 300,
         keep_failed_state: bool = False,
+        aenv_pvc_name_template: str = "",
+        aenv_system_url: str = "",
     ) -> None:
         super().__init__(service_name="playwright_webarena")
 
@@ -120,10 +122,13 @@ class PlaywrightStateManager(BaseStateManager):
         )
 
         self.skip_cleanup = skip_cleanup
+        self.active_entry_url = None
+        self.active_metadata = {}
         self.state_backend_name = state_backend
         self.reset_timeout = reset_timeout
         self.keep_failed_state = keep_failed_state
         self.external_backend = None
+        self.aenv_backend = None
         if state_backend == "external-state":
             self.external_backend = ExternalStateBackend(
                 state_root=state_root,
@@ -131,9 +136,16 @@ class PlaywrightStateManager(BaseStateManager):
                 media_mode=media_mode,
                 runtime_registry=runtime_registry,
             )
+        elif state_backend == "aenv":
+            self.aenv_backend = AEnvServiceBackend(
+                pvc_name_template=aenv_pvc_name_template,
+                system_url=aenv_system_url,
+                timeout=reset_timeout,
+                runtime_registry=runtime_registry,
+            )
         elif state_backend != "legacy-docker":
             raise ValueError(
-                "WEBARENA_STATE_BACKEND must be legacy-docker or external-state"
+                "WEBARENA_STATE_BACKEND must be legacy-docker, external-state, or aenv"
             )
 
         logger.info(
@@ -441,6 +453,8 @@ class PlaywrightStateManager(BaseStateManager):
     # ---- BaseStateManager hooks -----------------------------------------
 
     def _create_initial_state(self, task: BaseTask) -> Optional[InitialStateInfo]:
+        if self.aenv_backend is not None:
+            return self._create_aenv_initial_state(task)
         if self.external_backend is not None:
             return self._create_external_initial_state(task)
         try:
@@ -523,6 +537,36 @@ class PlaywrightStateManager(BaseStateManager):
             )
         except Exception as exc:
             logger.error("| Failed to create WebArena initial state: %s", exc)
+            return None
+
+    def _create_aenv_initial_state(self, task: BaseTask) -> Optional[InitialStateInfo]:
+        category = getattr(task, "category_id", "")
+        if category not in self.CATEGORY_CONFIGS:
+            logger.error("| Unsupported WebArena category: %s", category)
+            return None
+        try:
+            prepared = self.aenv_backend.prepare(category)
+            readiness_path = self.CATEGORY_CONFIGS[category]["readiness_path"]
+            entry_url = prepared.service_url
+            if readiness_path and readiness_path != "/":
+                entry_url += readiness_path
+            metadata = {
+                "backend": "aenv",
+                "category": category,
+                "aenv_service_id": prepared.service_id,
+                "pvc_name": prepared.pvc_name,
+                "base_url": entry_url,
+                **prepared.metadata,
+            }
+            self.active_entry_url = entry_url
+            self.track_resource("aenv_service", prepared.service_id, metadata)
+            return InitialStateInfo(
+                state_id=prepared.service_id,
+                state_url=entry_url,
+                metadata=metadata,
+            )
+        except Exception as exc:
+            logger.error("| Failed to create AEnv WebArena service: %s", exc)
             return None
 
     def _create_external_initial_state(
@@ -626,6 +670,8 @@ class PlaywrightStateManager(BaseStateManager):
             task.docker_container_name = state_info.state_id
             task.base_url = state_info.state_url
             task.docker_metadata = state_info.metadata
+            self.active_entry_url = state_info.state_url
+            self.active_metadata = state_info.metadata or {}
 
     def _cleanup_task_initial_state(self, task: BaseTask) -> bool:
         if self.skip_cleanup:
@@ -640,6 +686,10 @@ class PlaywrightStateManager(BaseStateManager):
 
         try:
             metadata = getattr(task, "docker_metadata", None) or {}
+            if metadata.get("backend") == "aenv":
+                # BaseStateManager removes the tracked AEnv service immediately
+                # after this hook. Keep the operation single-shot.
+                return True
             container_name = metadata.get("container_name", self.config.container_name)
             self._stop_and_remove_container(container_name)
             if metadata.get("backend") == "external-state":
@@ -668,6 +718,9 @@ class PlaywrightStateManager(BaseStateManager):
                     resource["id"], resource["metadata"]["state_directory"]
                 )
                 return True
+            if resource.get("type") == "aenv_service":
+                self.aenv_backend.cleanup(resource["id"])
+                return True
             logger.warning(
                 "| Unknown resource type for cleanup: %s", resource.get("type")
             )
@@ -681,9 +734,9 @@ class PlaywrightStateManager(BaseStateManager):
         Provide configuration to the agent. The key piece is the base URL that
         agents should navigate to when starting tasks.
         """
-        return {
+        config = {
             "environment": f"webarena-{self.state_backend_name}",
-            "base_url": self._get_entry_url(),
+            "base_url": self.active_entry_url or self._get_entry_url(),
             "docker": {
                 "image": self.config.image_name,
                 "container": self.config.container_name,
@@ -691,6 +744,10 @@ class PlaywrightStateManager(BaseStateManager):
                 "container_port": self.config.container_port,
             },
         }
+        if self.state_backend_name == "aenv":
+            config.pop("docker")
+            config["aenv"] = self.active_metadata
+        return config
 
     def close_all(self) -> None:
         if self.skip_cleanup:
