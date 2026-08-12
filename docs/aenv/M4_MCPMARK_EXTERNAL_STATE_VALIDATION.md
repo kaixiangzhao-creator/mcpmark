@@ -35,6 +35,11 @@ container residue: none
 state-directory residue: none
 ```
 
+The same manager path was then verified with the 44GB Postmill baseline. Only
+PostgreSQL was reflink-cloned; 31,467 historical images were shared read-only.
+The Web endpoint and official health endpoint returned HTTP 200, and cleanup
+again left no container or state directory.
+
 The first integration attempt also exercised failure rollback. Docker rejected
 an invalid mount option before container creation; MCPMark removed the already
 prepared state slot. The mount renderer was corrected to Docker's official

@@ -552,7 +552,16 @@ class PlaywrightStateManager(BaseStateManager):
             for key, value in prepared.environment.items():
                 run_cmd.extend(["--env", f"{key}={value}"])
             run_cmd.extend(
-                ["-p", f"127.0.0.1::{self.config.container_port}", "-d", self.config.image_name]
+                [
+                    "-p",
+                    f"127.0.0.1::{self.config.container_port}",
+                    "-p",
+                    "127.0.0.1::8081",
+                    "-p",
+                    "127.0.0.1::49999",
+                    "-d",
+                    self.config.image_name,
+                ]
             )
             result = self._run_cmd(run_cmd)
             if result.returncode != 0:
@@ -561,6 +570,8 @@ class PlaywrightStateManager(BaseStateManager):
             self.config.host_port = self._mapped_host_port(
                 container_name, self.config.container_port
             )
+            aenv_mcp_port = self._mapped_host_port(container_name, 8081)
+            health_port = self._mapped_host_port(container_name, 49999)
             if category == "shopping":
                 self._configure_shopping_post_start()
             elif category == "shopping_admin":
@@ -576,6 +587,9 @@ class PlaywrightStateManager(BaseStateManager):
                 "host_port": self.config.host_port,
                 "container_port": self.config.container_port,
                 "base_url": entry_url,
+                "aenv_url": f"http://localhost:{aenv_mcp_port}",
+                "aenv_health_url": f"http://localhost:{aenv_mcp_port}/health",
+                "health_url": f"http://localhost:{health_port}/health",
                 "category": category,
                 "cleanup_token": prepared.cleanup_token,
                 "state_directory": str(prepared.state_directory),
@@ -690,5 +704,5 @@ class PlaywrightStateManager(BaseStateManager):
             pass
 
     def __del__(self) -> None:
-        if not self.skip_cleanup:
+        if not getattr(self, "skip_cleanup", True):
             self.close_all()
